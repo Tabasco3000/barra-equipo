@@ -1,0 +1,4 @@
+# Los escribe el motor al cargar el mod
+.claude-plugin/types/
+
+dist/

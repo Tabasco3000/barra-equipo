@@ -1,0 +1,1 @@
+{ "name": "botones-sesion", "version": "1.0.1", "description": "Barra del equipo arriba del prompt: cierre, estado, compactar, tope, contexto, diario y mapping; avisa cuando hay versión nueva", "types": "./types/index.d.ts" }
