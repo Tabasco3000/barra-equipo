@@ -1,5 +1,9 @@
 # Qué cambió
 
+## 1.0.2 · 23-oct-2026
+- «Cierra y archiva», «Compactar» y el diario en rojo ya responden al clic.
+- Se iluminan al pasar el puntero y al apretarlos, como los demás botones.
+
 ## 1.0.1 · 23-oct-2026
 - La barra se instala y se actualiza desde GitHub.
 

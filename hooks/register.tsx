@@ -5,7 +5,7 @@ import type { EngineInterface, Register } from 'claude-code'
 // español o en inglés. Se publica en GitHub (Tabasco3000/barra-equipo) y avisa cuando hay versión nueva.
 
 // La versión instalada: la misma de .claude-plugin/plugin.json (la prueba lo cuida).
-export const VERSION = '1.0.1'
+export const VERSION = '1.0.2'
 export const PUBLICADA = 'https://raw.githubusercontent.com/Tabasco3000/barra-equipo/master'
 
 // A cuántos tokens compacta esta sesión; «default» = sin tope propio: el límite del modelo (~1 millón).
@@ -14,6 +14,9 @@ const ventana = atom({ plugin: 'botones-sesion', key: 'ventana' } as const, 'def
 const cerrando = atom({ plugin: 'botones-sesion', key: 'cerrando' } as const, false)
 // La versión nueva publicada, si la hay.
 const nueva = atom({ plugin: 'botones-sesion', key: 'nueva' } as const, '')
+// Qué dibujo tiene el puntero encima y cuál se está apretando (la key de su hueco), para iluminarlo como un botón de la app.
+const encima = atom({ plugin: 'botones-sesion', key: 'encima' } as const, '')
+const apretado = atom({ plugin: 'botones-sesion', key: 'apretado' } as const, '')
 
 const SONNET = 'claude-sonnet-5-5'
 const OPCIONES = [
@@ -36,6 +39,9 @@ const MESES = [
 ]
 
 const enK = (tokens: number) => `${Math.round(tokens / 1000)}k`
+// '#3a3a3a' + 20 -> '#4e4e4e': el mismo color, más claro.
+const aclarar = (hex: string, cuanto: number) =>
+  `#${[1, 3, 5].map(i => Math.min(255, parseInt(hex.slice(i, i + 2), 16) + cuanto).toString(16).padStart(2, '0')).join('')}`
 // '2026-09-09T22:39' -> '09/09'
 const corta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 // 'Octubre 2026' o 'October 2026' -> 202609 (para ordenar); NaN si la carpeta no es de un mes.
@@ -156,6 +162,11 @@ export const register: Register = on => {
 
   // Los clics de las piezas propias (hueco.tsx, letra.tsx, pastilla.tsx) llegan aquí, con la key de la que se picó.
   on('ui.message', async ($, e, next) => {
+    // Los huecos mandan {encima}, {apretado} y {clic}; la pastilla y la letra de la terminal mandan `true` al picarlas.
+    const dato = (typeof e.data === 'object' && e.data !== null ? e.data : {}) as { encima?: boolean; apretado?: boolean; clic?: boolean }
+    if (dato.encima !== undefined) await update($, encima, ahora => (dato.encima ? e.element : ahora === e.element ? '' : ahora))
+    if (dato.apretado !== undefined) await update($, apretado, () => (dato.apretado ? e.element : ''))
+    if (e.data !== true && !dato.clic) return next(e)
     if (e.element === 'cerrar') {
       const estaba = await read($, cerrando)
       await update($, cerrando, () => !estaba)
@@ -174,6 +185,10 @@ export const register: Register = on => {
     const { context } = await $.session.usage()
     const { diario, mapping } = await ultimos($)
     const ahora = await $.clock.now()
+    // Los dibujos se iluminan como los botones de la app: un poco al pasar el puntero, más al apretar.
+    const sobre = await read($, encima)
+    const abajo = await read($, apretado)
+    const luz = (key: string, base: string) => (abajo === key ? aclarar(base, 40) : sobre === key ? aclarar(base, 20) : base)
     // Botón con la fecha, que lanza su comando. Cuando ya se pasó (diario semanal, mapping mensual) o nunca se ha hecho, la letra
     // va roja. La app no pinta el color de la letra en sus botones, así que en la app es un dibujo del gris y el alto de sus
     // botones con la letra roja adentro, obligada a caber, y un hueco encima que recibe el clic; en la terminal, la letra roja sola.
@@ -194,10 +209,10 @@ export const register: Register = on => {
             alt={texto}
             width={ancho}
             height={28}
-            source={`<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="28"><rect width="${ancho}" height="28" rx="7" fill="${GRIS_BOTON}"/><text x="${ancho / 2}" y="18.5" text-anchor="middle" textLength="${letra}" lengthAdjust="spacingAndGlyphs" font-family="-apple-system,BlinkMacSystemFont,Helvetica,sans-serif" font-size="14" fill="${ROJO_CLARO}">${texto}</text></svg>`}
+            source={`<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="28"><rect width="${ancho}" height="28" rx="7" fill="${luz(`${key}-letra`, GRIS_BOTON)}"/><text x="${ancho / 2}" y="18.5" text-anchor="middle" textLength="${letra}" lengthAdjust="spacingAndGlyphs" font-family="-apple-system,BlinkMacSystemFont,Helvetica,sans-serif" font-size="14" fill="${ROJO_CLARO}">${texto}</text></svg>`}
           />
           <Box position="absolute" top={0} bottom={0} left={0} right={0}>
-            <Client key={`${key}-letra`} module="./hueco.tsx" props={{ ancho: '100%', texto }} />
+            <Client key={`${key}-letra`} module="./hueco.tsx" width="100%" height="100%" props={{ texto }} />
           </Box>
         </Box>
       )
@@ -232,10 +247,10 @@ export const register: Register = on => {
             alt={cierre}
             width={ancho}
             height={22}
-            source={`<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="22"><rect width="${ancho}" height="22" rx="6" fill="${ROJO}"/><text x="${ancho / 2}" y="15" text-anchor="middle" textLength="${ancho - 18}" lengthAdjust="spacingAndGlyphs" font-family="-apple-system,BlinkMacSystemFont,Helvetica,sans-serif" font-size="12" font-weight="600" fill="#ffffff">${cierre}</text></svg>`}
+            source={`<svg xmlns="http://www.w3.org/2000/svg" width="${ancho}" height="22"><rect width="${ancho}" height="22" rx="6" fill="${luz('cerrar', ROJO)}"/><text x="${ancho / 2}" y="15" text-anchor="middle" textLength="${ancho - 18}" lengthAdjust="spacingAndGlyphs" font-family="-apple-system,BlinkMacSystemFont,Helvetica,sans-serif" font-size="12" font-weight="600" fill="#ffffff">${cierre}</text></svg>`}
           />
           <Box position="absolute" top={0} bottom={0} left={0} right={0}>
-            <Client key="cerrar" module="./hueco.tsx" props={{ ancho: '100%', texto: cierre }} />
+            <Client key="cerrar" module="./hueco.tsx" width="100%" height="100%" props={{ texto: cierre }} />
           </Box>
         </Box>
       )
@@ -252,10 +267,10 @@ export const register: Register = on => {
             alt="Compactar"
             width={26}
             height={22}
-            source={`<svg xmlns="http://www.w3.org/2000/svg" width="26" height="22"><rect width="26" height="22" rx="6" fill="#3a3a3a"/><path d="M19 4.5l-4.5 4.5M14.5 5.5v3.5h3.5M7 17.5l4.5-4.5M11.5 16.5V13H8" fill="none" stroke="#c9c9c9" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
+            source={`<svg xmlns="http://www.w3.org/2000/svg" width="26" height="22"><rect width="26" height="22" rx="6" fill="${luz('compactar', '#3a3a3a')}"/><path d="M19 4.5l-4.5 4.5M14.5 5.5v3.5h3.5M7 17.5l4.5-4.5M11.5 16.5V13H8" fill="none" stroke="#c9c9c9" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
           />
           <Box position="absolute" top={0} bottom={0} left={0} right={0}>
-            <Client key="compactar" module="./hueco.tsx" props={{ ancho: '100%', texto: 'Compactar' }} />
+            <Client key="compactar" module="./hueco.tsx" width="100%" height="100%" props={{ texto: 'Compactar' }} />
           </Box>
         </Box>
       )

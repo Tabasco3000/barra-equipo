@@ -64,6 +64,8 @@ test('cerebro en español: el diario en «📓 Diarios», el mapping, compactar,
   const prompts: string[] = []
   const variables: [string, string | undefined][] = []
   const comandos: string[] = []
+  const avisos: string[] = []
+  on('ui.toast', ($, e) => { avisos.push(e.text); return { value: undefined } as never })
   on('command.run', ($, e) => { comandos.push(e.command); return { text: '' } })
   on('prompt.submit', ($, e) => { prompts.push(e.text); return { text: e.text } })
   on('env.set', ($, e) => { variables.push([e.name, e.value]); return { value: undefined } as never })
@@ -87,7 +89,25 @@ test('cerebro en español: el diario en «📓 Diarios», el mapping, compactar,
       // La letra va dentro del dibujo, obligada a caber.
       expect(dibujos[3].props.source).toContain('textLength="77"')
       expect(dibujos[3].props.source).toContain('fill="#e07a74">Diario 10/10</text>')
-      await ui.post(true, { in: 'compactar' })
+      // La capa del clic mide lo mismo que el dibujo, y el dibujo se ilumina: más claro con el puntero encima, más al apretar.
+      const capa = await ui.find({ key: 'compactar' })
+      expect([capa?.props.width, capa?.props.height]).toEqual(['100%', '100%'])
+      const fondo = async () => /<rect width="26" height="22" rx="6" fill="(#[0-9a-f]{6})"/.exec(
+        (await ui.findAll({ type: 'Svg' })).find((svg: any) => svg.props.alt === 'Compactar')!.props.source)?.[1]
+      expect(await fondo()).toBe('#3a3a3a')
+      await ui.post({ encima: true }, { in: 'compactar' })
+      expect(await fondo()).toBe('#4e4e4e')
+      await ui.post({ apretado: true }, { in: 'compactar' })
+      expect(await fondo()).toBe('#626262')
+      // Soltar afuera no cuenta; soltar adentro sí.
+      // (La terminal ya compactó en este minuto: el clic que sí cuenta se topa con el freno de 60 s y lo avisa.)
+      avisos.length = 0
+      await ui.post({ apretado: false, clic: false }, { in: 'compactar' })
+      expect(avisos).toEqual([])
+      await ui.post({ apretado: false, clic: true }, { in: 'compactar' })
+      expect(avisos).toEqual(['/compact ya va en camino'])
+      await ui.post({ encima: false }, { in: 'compactar' })
+      expect(await fondo()).toBe('#3a3a3a')
     } else {
       expect((await ui.find({ key: 'diario-letra' }))?.props.props).toEqual({ texto: 'Diario 10/10', color: '#e07a74', fuerte: false })
       await ui.press({ key: 'compactar' })
